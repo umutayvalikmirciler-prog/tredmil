@@ -4,7 +4,7 @@ local UserInputService = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
-local INTERVAL = 2
+local INTERVAL = 1
 local a = workspace.Machines.Treadmill.Treadmill
 
 local screenGui = Instance.new("ScreenGui")
