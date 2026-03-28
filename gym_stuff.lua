@@ -5,7 +5,425 @@ local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
 local INTERVAL = 1
+local Players      = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
 
+local CFG = {
+    DISTANCE_UPDATE = 0.5,
+    MAX_CARDS       = 8,
+    CLOSE_DIST      = 30,
+    MEDIUM_DIST     = 80,
+    COLOR_CLOSE     = Color3.fromRGB(255,  60,  60),
+    COLOR_MEDIUM    = Color3.fromRGB(255, 200,  40),
+    COLOR_FAR       = Color3.fromRGB( 60, 220, 100),
+    SEL_CLOSE       = BrickColor.new("Bright red"),
+    SEL_MEDIUM      = BrickColor.new("Bright yellow"),
+    SEL_FAR         = BrickColor.new("Lime green"),
+    PLAY_SOUND      = true,
+    SOUND_ID        = "rbxassetid://4203251375",
+    SOUND_VOLUME    = 1.5,
+    SOUND_INTERVAL  = 2.5,
+    SLIDE_TIME      = 0.35,
+    CARD_WIDTH      = 280,
+    CARD_HEIGHT     = 80,
+    CARD_PADDING    = 8,
+}
+
+local LocalPlayer = Players.LocalPlayer
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name           = "NPCDetectorGui"
+ScreenGui.ResetOnSpawn   = false
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent         = LocalPlayer:WaitForChild("PlayerGui")
+
+local Container = Instance.new("Frame")
+Container.Name                   = "CardContainer"
+Container.BackgroundTransparency = 1
+Container.AnchorPoint            = Vector2.new(1, 0)
+Container.Position               = UDim2.new(1, -12, 0, 12)
+Container.Size                   = UDim2.new(0, CFG.CARD_WIDTH, 1, -12)
+Container.ClipsDescendants       = false
+Container.Parent                 = ScreenGui
+
+local Layout = Instance.new("UIListLayout")
+Layout.SortOrder           = Enum.SortOrder.LayoutOrder
+Layout.Padding             = UDim.new(0, CFG.CARD_PADDING)
+Layout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+Layout.VerticalAlignment   = Enum.VerticalAlignment.Top
+Layout.Parent              = Container
+
+local tracked   = {}
+local cardQueue = {}
+local cardCount = 0
+
+local function getRootPart(model)
+    local function validPart(name)
+        local p = model:FindFirstChild(name)
+        return (p and p:IsA("BasePart")) and p or nil
+    end
+    return validPart("HumanoidRootPart")
+        or validPart("Torso")
+        or validPart("UpperTorso")
+        or model:FindFirstChildWhichIsA("BasePart")
+end
+
+local function getPlayerRoot()
+    local char = LocalPlayer.Character
+    if not char then return nil end
+    return char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
+end
+
+local function distanceTo(npcRoot)
+    local myRoot = getPlayerRoot()
+    if not myRoot or not npcRoot or not npcRoot.Parent then return math.huge end
+    return (npcRoot.Position - myRoot.Position).Magnitude
+end
+
+local function dangerColor(dist)
+    if dist <= CFG.CLOSE_DIST  then return CFG.COLOR_CLOSE,  CFG.SEL_CLOSE  end
+    if dist <= CFG.MEDIUM_DIST then return CFG.COLOR_MEDIUM, CFG.SEL_MEDIUM end
+    return CFG.COLOR_FAR, CFG.SEL_FAR
+end
+
+local function fmt(d)
+    return d == math.huge and "?" or string.format("%.1f m", d)
+end
+
+local function isInsideAlive(model)
+    local ancestor = model.Parent
+    while ancestor and ancestor ~= workspace do
+        if ancestor:IsA("Folder") and ancestor.Name == "Alive" then
+            return true
+        end
+        ancestor = ancestor.Parent
+    end
+    return false
+end
+
+local function isNPC(model)
+    if not model:IsA("Model") then return false end
+    if not model:FindFirstChildOfClass("Humanoid") then return false end
+    if not getRootPart(model) then return false end
+    if model == LocalPlayer.Character then return false end
+    if isInsideAlive(model) then return false end
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p.Character == model then return false end
+    end
+    return true
+end
+
+local function makeSound()
+    if not CFG.PLAY_SOUND then return nil end
+    local s = Instance.new("Sound")
+    s.SoundId            = CFG.SOUND_ID
+    s.Volume             = CFG.SOUND_VOLUME
+    s.RollOffMaxDistance = 0
+    s.Parent             = LocalPlayer.PlayerGui
+    return s
+end
+
+local function startAlertLoop(data)
+    if not CFG.PLAY_SOUND then return end
+    data.alertActive = true
+    task.spawn(function()
+        while data.alertActive do
+            if data.sound then
+                data.sound:Play()
+            end
+            task.wait(CFG.SOUND_INTERVAL)
+        end
+        if data.sound then
+            data.sound:Stop()
+        end
+    end)
+end
+
+local function stopAlertLoop(data)
+    data.alertActive = false
+    if data.sound then
+        data.sound:Stop()
+        data.sound:Destroy()
+        data.sound = nil
+    end
+end
+
+local function makeHighlight(model, selColor)
+    local hl = Instance.new("Highlight")
+    hl.Adornee             = model
+    hl.OutlineColor        = selColor.Color
+    hl.FillColor           = selColor.Color
+    hl.OutlineTransparency = 0
+    hl.FillTransparency    = 0.65
+    hl.DepthMode           = Enum.HighlightDepthMode.AlwaysOnTop
+    hl.Parent              = model
+
+    task.spawn(function()
+        while hl.Parent do
+            local tweenIn = TweenService:Create(hl,
+                TweenInfo.new(0.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
+                { FillTransparency = 0.35 })
+            local tweenOut = TweenService:Create(hl,
+                TweenInfo.new(0.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
+                { FillTransparency = 0.65 })
+            tweenIn:Play()
+            tweenIn.Completed:Connect(function()
+                if hl.Parent then tweenOut:Play() end
+            end)
+            task.wait(1.4)
+        end
+    end)
+
+    return hl
+end
+
+local function makeCard(model)
+    local npcRoot = getRootPart(model)
+    local dist    = distanceTo(npcRoot)
+    local col, _  = dangerColor(dist)
+
+    local card = Instance.new("Frame")
+    card.Name             = "NPCCard_" .. model.Name
+    card.Size             = UDim2.new(0, CFG.CARD_WIDTH, 0, CFG.CARD_HEIGHT)
+    card.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+    card.BorderSizePixel  = 0
+    card.ClipsDescendants = false
+    card.Position         = UDim2.new(0, CFG.CARD_WIDTH + 20, 0, 0)
+    card.Parent           = Container
+    Instance.new("UICorner", card).CornerRadius = UDim.new(0, 10)
+
+    local accent = Instance.new("Frame")
+    accent.Name             = "Accent"
+    accent.Size             = UDim2.new(0, 5, 1, 0)
+    accent.BackgroundColor3 = col
+    accent.BorderSizePixel  = 0
+    accent.Parent           = card
+    Instance.new("UICorner", accent).CornerRadius = UDim.new(0, 10)
+
+    local icon = Instance.new("TextLabel")
+    icon.Size                   = UDim2.new(0, 36, 0, 36)
+    icon.Position               = UDim2.new(0, 14, 0.5, -18)
+    icon.BackgroundTransparency = 1
+    icon.Text                   = "!"
+    icon.TextColor3             = col
+    icon.Font                   = Enum.Font.GothamBold
+    icon.TextSize               = 26
+    icon.TextXAlignment         = Enum.TextXAlignment.Center
+    icon.Parent                 = card
+
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Size                   = UDim2.new(1, -80, 0, 26)
+    nameLabel.Position               = UDim2.new(0, 58, 0, 12)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text                   = model.Name
+    nameLabel.TextColor3             = Color3.fromRGB(240, 240, 240)
+    nameLabel.Font                   = Enum.Font.GothamBold
+    nameLabel.TextSize               = 15
+    nameLabel.TextXAlignment         = Enum.TextXAlignment.Left
+    nameLabel.TextTruncate           = Enum.TextTruncate.AtEnd
+    nameLabel.Parent                 = card
+
+    local distLabel = Instance.new("TextLabel")
+    distLabel.Name                   = "DistLabel"
+    distLabel.Size                   = UDim2.new(1, -80, 0, 20)
+    distLabel.Position               = UDim2.new(0, 58, 0, 40)
+    distLabel.BackgroundTransparency = 1
+    distLabel.Text                   = "Distance: " .. fmt(dist)
+    distLabel.TextColor3             = col
+    distLabel.Font                   = Enum.Font.Gotham
+    distLabel.TextSize               = 13
+    distLabel.TextXAlignment         = Enum.TextXAlignment.Left
+    distLabel.Parent                 = card
+
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Size             = UDim2.new(0, 26, 0, 26)
+    closeBtn.Position         = UDim2.new(1, -32, 0, 8)
+    closeBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+    closeBtn.BorderSizePixel  = 0
+    closeBtn.Text             = "x"
+    closeBtn.TextColor3       = Color3.fromRGB(180, 180, 180)
+    closeBtn.Font             = Enum.Font.GothamBold
+    closeBtn.TextSize         = 14
+    closeBtn.AutoButtonColor  = true
+    closeBtn.Parent           = card
+    Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
+
+    TweenService:Create(card,
+        TweenInfo.new(CFG.SLIDE_TIME, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+        { Position = UDim2.new(0, 0, 0, 0) }):Play()
+
+    return card, distLabel, accent, icon, closeBtn
+end
+
+local function slideOut(card, cb)
+    if not card or not card.Parent then
+        if cb then cb() end
+        return
+    end
+    TweenService:Create(card,
+        TweenInfo.new(CFG.SLIDE_TIME, Enum.EasingStyle.Back, Enum.EasingDirection.In),
+        { Position = UDim2.new(0, CFG.CARD_WIDTH + 20, 0, 0) }):Play()
+    task.delay(CFG.SLIDE_TIME + 0.05, function()
+        if card and card.Parent then card:Destroy() end
+        if cb then cb() end
+    end)
+end
+
+local promoteQueue
+
+local function attachCard(model)
+    if cardCount >= CFG.MAX_CARDS then return false end
+    local data = tracked[model]
+    if not data or data.card then return false end
+
+    cardCount  = cardCount + 1
+    data.sound = makeSound()
+    startAlertLoop(data)
+
+    local card, distLabel, accent, icon, closeBtn = makeCard(model)
+    data.card      = card
+    data.distLabel = distLabel
+    data.accent    = accent
+    data.icon      = icon
+
+    closeBtn.MouseButton1Click:Connect(function()
+        stopAlertLoop(data)
+        slideOut(card)
+        cardCount      = cardCount - 1
+        data.card      = nil
+        data.distLabel = nil
+        data.accent    = nil
+        data.icon      = nil
+        promoteQueue()
+    end)
+
+    return true
+end
+
+promoteQueue = function()
+    while #cardQueue > 0 and cardCount < CFG.MAX_CARDS do
+        local next = table.remove(cardQueue, 1)
+        if next.Parent and tracked[next] and not tracked[next].card then
+            attachCard(next)
+        end
+    end
+end
+
+local function removeNPC(model)
+    local data = tracked[model]
+    if not data then return end
+    tracked[model] = nil
+
+    stopAlertLoop(data)
+
+    if data.conn then data.conn:Disconnect() end
+    if data.highlight and data.highlight.Parent then data.highlight:Destroy() end
+
+    if data.card then
+        cardCount = cardCount - 1
+        slideOut(data.card, promoteQueue)
+    end
+
+    for i = #cardQueue, 1, -1 do
+        if cardQueue[i] == model then table.remove(cardQueue, i) end
+    end
+end
+
+local function registerExisting(model)
+    if tracked[model] then return end
+    local conn = model.AncestryChanged:Connect(function(_, newParent)
+        if not newParent then removeNPC(model) end
+    end)
+    tracked[model] = { conn = conn, npcRoot = getRootPart(model) }
+end
+
+local function addNewNPC(model)
+    if tracked[model] then return end
+
+    local npcRoot   = getRootPart(model)
+    local dist      = distanceTo(npcRoot)
+    local _, selCol = dangerColor(dist)
+
+    local conn = model.AncestryChanged:Connect(function(_, newParent)
+        if not newParent then removeNPC(model) end
+    end)
+
+    tracked[model] = {
+        highlight = makeHighlight(model, selCol),
+        conn      = conn,
+        npcRoot   = npcRoot,
+    }
+
+    if not attachCard(model) then
+        table.insert(cardQueue, model)
+    end
+end
+
+task.spawn(function()
+    while true do
+        task.wait(CFG.DISTANCE_UPDATE)
+        for model, data in pairs(tracked) do
+            local root = data.npcRoot
+            if not root or not root.Parent then continue end
+
+            local dist        = distanceTo(root)
+            local col, selCol = dangerColor(dist)
+
+            if data.distLabel and data.distLabel.Parent then
+                data.distLabel.Text       = "Distance: " .. fmt(dist)
+                data.distLabel.TextColor3 = col
+            end
+            if data.accent and data.accent.Parent then
+                data.accent.BackgroundColor3 = col
+            end
+            if data.icon and data.icon.Parent then
+                data.icon.TextColor3 = col
+            end
+            if data.highlight and data.highlight.Parent then
+                data.highlight.OutlineColor = selCol.Color
+                data.highlight.FillColor    = selCol.Color
+            end
+        end
+    end
+end)
+
+local function silentScan(parent)
+    for _, child in ipairs(parent:GetChildren()) do
+        if child:IsA("Model") and isNPC(child) then
+            registerExisting(child)
+        end
+        if child:IsA("Folder") or child:IsA("Model") then
+            silentScan(child)
+        end
+    end
+end
+
+local function watchContainer(container)
+    container.ChildAdded:Connect(function(child)
+        task.wait()
+        if child:IsA("Model") and isNPC(child) then
+            addNewNPC(child)
+        end
+        if child:IsA("Folder") or child:IsA("Model") then
+            watchContainer(child)
+            silentScan(child)
+        end
+    end)
+end
+
+silentScan(workspace)
+watchContainer(workspace)
+
+Players.PlayerRemoving:Connect(function(p)
+    if p ~= LocalPlayer then return end
+    for _, data in pairs(tracked) do
+        stopAlertLoop(data)
+        if data.conn then data.conn:Disconnect() end
+        if data.highlight and data.highlight.Parent then data.highlight:Destroy() end
+    end
+    tracked = {}
+end)
 local machineConfig = {
 	{ name = "Treadmill", folder = workspace.Machines.Treadmill },
 	{ name = "Curls",     folder = workspace.Machines.Curls     },
