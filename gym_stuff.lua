@@ -3,8 +3,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
-
-local INTERVAL = 1
+--boss
 local Players      = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 
@@ -388,32 +387,28 @@ task.spawn(function()
     end
 end)
 
-local function silentScan(parent)
-    for _, child in ipairs(parent:GetChildren()) do
-        if child:IsA("Model") and isNPC(child) then
-            registerExisting(child)
-        end
-        if child:IsA("Folder") or child:IsA("Model") then
-            silentScan(child)
-        end
-    end
-end
-
-local function watchContainer(container)
-    container.ChildAdded:Connect(function(child)
+local function setupContainer(parent)
+    parent.ChildAdded:Connect(function(child)
         task.wait()
         if child:IsA("Model") and isNPC(child) then
             addNewNPC(child)
         end
         if child:IsA("Folder") or child:IsA("Model") then
-            watchContainer(child)
-            silentScan(child)
+            setupContainer(child)
         end
     end)
+
+    for _, child in ipairs(parent:GetChildren()) do
+        if child:IsA("Model") and isNPC(child) then
+            registerExisting(child)
+        end
+        if child:IsA("Folder") or child:IsA("Model") then
+            setupContainer(child)
+        end
+    end
 end
 
-silentScan(workspace)
-watchContainer(workspace)
+setupContainer(workspace)
 
 Players.PlayerRemoving:Connect(function(p)
     if p ~= LocalPlayer then return end
@@ -424,6 +419,7 @@ Players.PlayerRemoving:Connect(function(p)
     end
     tracked = {}
 end)
+--boss
 local machineConfig = {
 	{ name = "Treadmill", folder = workspace.Machines.Treadmill },
 	{ name = "Curls",     folder = workspace.Machines.Curls     },
