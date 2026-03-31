@@ -429,8 +429,6 @@ local function onChildAdded(child)
                 if conn then conn:Disconnect() end
             end)
         end
-    elseif child:IsA("Folder") then
-        setupContainer(child)
     end
 end
 
@@ -445,7 +443,7 @@ setupContainer = function(parent)
     end
 end
 
-setupContainer(workspace)
+setupContainer(workspace.NPCs)
 
 Players.PlayerRemoving:Connect(function(p)
     if p ~= LocalPlayer then return end
