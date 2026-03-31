@@ -1,12 +1,12 @@
-local Players           = game:GetService("Players")
-local UserInputService  = game:GetService("UserInputService")
-local TweenService      = game:GetService("TweenService")
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local LocalPlayer = Players.LocalPlayer
-local playerGui   = LocalPlayer:WaitForChild("PlayerGui")
+local playerGui = LocalPlayer:WaitForChild("PlayerGui")
 
-local remoteEvent   = ReplicatedStorage:WaitForChild("Network"):WaitForChild("RemoteEvent")
+local remoteEvent = ReplicatedStorage:WaitForChild("Network"):WaitForChild("RemoteEvent")
 local remotePayload = buffer.fromstring("\b\005\001")  -- built once, reused forever
 
 local CFG = {
