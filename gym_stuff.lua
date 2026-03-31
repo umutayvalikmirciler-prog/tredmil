@@ -439,13 +439,11 @@ setupContainer = function(parent)
     for _, child in ipairs(parent:GetChildren()) do
         if child:IsA("Model") and isNPC(child) then
             registerExisting(child)
-        elseif child:IsA("Folder") then
-            setupContainer(child)
-        end
     end
 end
 
-setupContainer(workspace)
+local npcFolder = workspace:WaitForChild("NPCs")
+setupContainer(npcFolder)
 
 Players.PlayerRemoving:Connect(function(p)
     if p ~= LocalPlayer then return end
