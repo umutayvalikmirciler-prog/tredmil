@@ -458,16 +458,22 @@ end)
 -- ── MACHINE GUI ───────────────────────────────────────────────────────────────
 
 local machineConfig = {
-    { name = "Treadmill", folder = workspace.Machines.Treadmill },
-    { name = "Curls",     folder = workspace.Machines.Curls     },
-    { name = "Pullups",   folder = workspace.Machines.Pullups   },
+    { name = "Treadmill", folders = { workspace.Machines.Treadmill, workspace.Gangbase.Upgrades.Treadmill } },
+    { name = "Curls",     folders = { workspace.Machines.Curls,     workspace.Gangbase.Upgrades["Curl-Up"]   } },
+    { name = "Pullups",   folders = { workspace.Machines.Pullups,   workspace.Gangbase.Upgrades["Pullup Bar"]   } },
 }
 
 local machineModels = {}
 for _, cfg in ipairs(machineConfig) do
     local models = {}
-    for _, child in ipairs(cfg.folder:GetChildren()) do
-        if child:IsA("Model") then table.insert(models, child) end
+    for _, folder in ipairs(cfg.folders) do
+        if folder then  
+            for _, child in ipairs(folder:GetChildren()) do
+                if child:IsA("Model") then
+                    table.insert(models, child)
+                end
+            end
+        end
     end
     machineModels[cfg.name] = models
 end
