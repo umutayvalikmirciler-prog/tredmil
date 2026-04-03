@@ -607,7 +607,6 @@ for _, cfg in ipairs(machineConfig) do
         end
         currentTarget = models[selectedIndex[cfg.name]]
         highlightModel(currentTarget)
-        statusLabel.Text = cfg.name .. " #" .. selectedIndex[cfg.name] .. " / " .. #models
     end)
 end
 
