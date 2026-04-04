@@ -7,7 +7,29 @@ local LocalPlayer = Players.LocalPlayer
 local playerGui   = LocalPlayer:WaitForChild("PlayerGui")
 
 local remoteEvent   = ReplicatedStorage:WaitForChild("Network"):WaitForChild("RemoteEvent")
-local remotePayload = buffer.fromstring("\b\005\001")  -- built once, reused forever
+local remotePayload = buffer.fromstring("\b\005\001")
+
+-- ── NPC NAME LIST ─────────────────────────────────────────────────────────────
+-- Add or remove NPC names here. Only models whose name exactly matches one of
+-- these will be detected, highlighted, and trigger notifications.
+-- Names are case-sensitive.
+
+local NPC_NAMES = {
+    "Zombie",
+    "R6Zombie",
+    "Skeleton",
+    "Bandit",
+    "Guard",
+    -- add more as needed
+}
+
+-- Build a hash set for O(1) lookup instead of looping the list every check
+local NPC_SET = {}
+for _, name in ipairs(NPC_NAMES) do
+    NPC_SET[name] = true
+end
+
+-- ── CONFIG ────────────────────────────────────────────────────────────────────
 
 local CFG = {
     DISTANCE_UPDATE = 0.5,
@@ -17,9 +39,9 @@ local CFG = {
     COLOR_CLOSE     = Color3.fromRGB(255,  60,  60),
     COLOR_MEDIUM    = Color3.fromRGB(255, 200,  40),
     COLOR_FAR       = Color3.fromRGB( 60, 220, 100),
-    SEL_CLOSE       = BrickColor.new("Bright red"),
-    SEL_MEDIUM      = BrickColor.new("Bright yellow"),
-    SEL_FAR         = BrickColor.new("Lime green"),
+    SEL_CLOSE_COLOR = Color3.fromRGB(255,  23,  23),
+    SEL_MED_COLOR   = Color3.fromRGB(255, 214,   0),
+    SEL_FAR_COLOR   = Color3.fromRGB( 53, 208,  33),
     PLAY_SOUND      = true,
     SOUND_ID        = "rbxassetid://138901491787668",
     SOUND_VOLUME    = 10,
@@ -33,6 +55,9 @@ local TIER_CLOSE  = 1
 local TIER_MEDIUM = 2
 local TIER_FAR    = 3
 
+local TIER_COLOR     = { CFG.COLOR_CLOSE,     CFG.COLOR_MEDIUM,   CFG.COLOR_FAR     }
+local TIER_SEL_COLOR = { CFG.SEL_CLOSE_COLOR, CFG.SEL_MED_COLOR,  CFG.SEL_FAR_COLOR }
+
 local TWEEN_SLIDE_IN  = TweenInfo.new(CFG.SLIDE_TIME, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 local TWEEN_SLIDE_OUT = TweenInfo.new(CFG.SLIDE_TIME, Enum.EasingStyle.Back, Enum.EasingDirection.In)
 
@@ -40,11 +65,6 @@ local CARD_OFF = UDim2.new(0, CFG.CARD_WIDTH + 20, 0, 0)
 local CARD_ON  = UDim2.new(0, 0, 0, 0)
 local CARD_BG  = Color3.fromRGB(15, 15, 20)
 local WHITE    = Color3.fromRGB(240, 240, 240)
-
-local TIER_COLOR     = { CFG.COLOR_CLOSE, CFG.COLOR_MEDIUM, CFG.COLOR_FAR }
-local TIER_SEL       = { CFG.SEL_CLOSE,   CFG.SEL_MEDIUM,   CFG.SEL_FAR   }
--- Pre-extract Color3 values from BrickColors so highlight updates never call .Color
-local TIER_SEL_COLOR = { CFG.SEL_CLOSE.Color, CFG.SEL_MEDIUM.Color, CFG.SEL_FAR.Color }
 
 -- ── DETECTOR GUI ──────────────────────────────────────────────────────────────
 
@@ -79,17 +99,7 @@ local cardCount = 0
 
 -- ── HELPERS ───────────────────────────────────────────────────────────────────
 
-local function getRootPart(model)
-    local p
-    p = model:FindFirstChild("HumanoidRootPart")
-    if p and p:IsA("BasePart") then return p end
-    p = model:FindFirstChild("Torso")
-    if p and p:IsA("BasePart") then return p end
-    p = model:FindFirstChild("UpperTorso")
-    if p and p:IsA("BasePart") then return p end
-    return model:FindFirstChildWhichIsA("BasePart")
-end
-
+-- Cache the player's root part; only updates on character spawn/despawn
 local cachedPlayerRoot = nil
 LocalPlayer.CharacterAdded:Connect(function(char)
     cachedPlayerRoot = nil
@@ -115,25 +125,12 @@ local function getTier(dist)
     return TIER_FAR
 end
 
-local function isInsideAlive(model)
-    local a = model.Parent
-    while a and a ~= workspace do
-        if a:IsA("Folder") and a.Name == "Alive" then return true end
-        a = a.Parent
-    end
-    return false
-end
-
-local function isNPC(model)
-    if not model:IsA("Model") then return false end
-    if not model:FindFirstChildOfClass("Humanoid") then return false end
-    if not getRootPart(model) then return false end
-    if model == LocalPlayer.Character then return false end
-    if isInsideAlive(model) then return false end
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p.Character == model then return false end
-    end
-    return true
+-- Fastest possible NPC check: one hash lookup on the model name.
+-- No Humanoid search, no ancestry walk, no player loop.
+local function isTrackedNPC(model)
+    return model:IsA("Model")
+        and NPC_SET[model.Name] == true
+        and model ~= LocalPlayer.Character
 end
 
 -- ── SOUND ─────────────────────────────────────────────────────────────────────
@@ -164,30 +161,21 @@ end
 -- ── HIGHLIGHT ─────────────────────────────────────────────────────────────────
 
 local function makeHighlight(model, tier)
-    local col = TIER_SEL_COLOR[tier]
-    local hl  = Instance.new("Highlight")
+    local hl = Instance.new("Highlight")
     hl.Adornee             = model
-    hl.OutlineColor        = col
-    hl.FillColor           = col
+    hl.OutlineColor        = TIER_SEL_COLOR[tier]
+    hl.FillColor           = TIER_SEL_COLOR[tier]
     hl.OutlineTransparency = 0
     hl.FillTransparency    = 0.65
     hl.DepthMode           = Enum.HighlightDepthMode.AlwaysOnTop
     hl.Parent              = model
-
-    -- Static highlight — no pulse animation.
-    -- Animating FillTransparency forces the renderer to redraw the depth pass
-    -- every frame during the tween, which is the main source of GPU cost when
-    -- many NPCs are highlighted at once. Static is dramatically cheaper.
     return hl
 end
 
 -- ── CARD UI ───────────────────────────────────────────────────────────────────
 
-local function makeCard(model)
-    local npcRoot = getRootPart(model)
-    local dist    = getDistance(npcRoot)
-    local tier    = getTier(dist)
-    local col     = TIER_COLOR[tier]
+local function makeCard(model, dist, tier)
+    local col = TIER_COLOR[tier]
 
     local card = Instance.new("Frame")
     card.Name             = "NPCCard_" .. model.Name
@@ -284,7 +272,9 @@ local function attachCard(model)
     data.sound = makeSound()
     startAlert(data)
 
-    local card, distLabel, accent, icon, closeBtn = makeCard(model)
+    local dist = getDistance(data.npcRoot)
+    local tier = getTier(dist)
+    local card, distLabel, accent, icon, closeBtn = makeCard(model, dist, tier)
     data.card      = card
     data.distLabel = distLabel
     data.accent    = accent
@@ -332,28 +322,49 @@ local function removeNPC(model)
     end
 end
 
+-- Registers a model that already existed when the script loaded.
+-- Gives it a highlight and removal tracking, but NO card and NO sound.
 local function registerExisting(model)
     if tracked[model] then return end
+    local npcRoot = model:FindFirstChild("HumanoidRootPart")
+        or model:FindFirstChild("Torso")
+        or model:FindFirstChildWhichIsA("BasePart")
+    if not npcRoot then return end
+
     local conn = model.AncestryChanged:Connect(function(_, newParent)
         if not newParent then removeNPC(model) end
     end)
-    tracked[model] = { conn = conn, npcRoot = getRootPart(model) }
-end
-
-local function addNewNPC(model)
-    if tracked[model] then return end
-    local npcRoot = getRootPart(model)
-    local tier    = getTier(getDistance(npcRoot))
-    local conn    = model.AncestryChanged:Connect(function(_, newParent)
-        if not newParent then removeNPC(model) end
-    end)
+    local tier = getTier(getDistance(npcRoot))
     tracked[model] = {
-        highlight = makeHighlight(model, tier),
         conn      = conn,
         npcRoot   = npcRoot,
+        highlight = makeHighlight(model, tier),
         tier      = tier,
         hlTier    = tier,
-        lastDist  = -1,  -- forces first distLabel write
+        lastDist  = -1,
+    }
+end
+
+-- Registers a model that spawned after the script loaded.
+-- Gives it a highlight, a card, and sound.
+local function addNewNPC(model)
+    if tracked[model] then return end
+    local npcRoot = model:FindFirstChild("HumanoidRootPart")
+        or model:FindFirstChild("Torso")
+        or model:FindFirstChildWhichIsA("BasePart")
+    if not npcRoot then return end
+
+    local conn = model.AncestryChanged:Connect(function(_, newParent)
+        if not newParent then removeNPC(model) end
+    end)
+    local tier = getTier(getDistance(npcRoot))
+    tracked[model] = {
+        conn      = conn,
+        npcRoot   = npcRoot,
+        highlight = makeHighlight(model, tier),
+        tier      = tier,
+        hlTier    = tier,
+        lastDist  = -1,
     }
     if not attachCard(model) then
         table.insert(cardQueue, model)
@@ -361,10 +372,6 @@ local function addNewNPC(model)
 end
 
 -- ── UPDATE LOOP ───────────────────────────────────────────────────────────────
--- Runs every DISTANCE_UPDATE seconds.
--- Skips silent-only entries (no card, no highlight).
--- Compares rounded integer distance to avoid redundant string allocs.
--- Only touches UI properties when tier or distance actually changed.
 
 task.spawn(function()
     while true do
@@ -374,22 +381,20 @@ task.spawn(function()
             if not root or not root.Parent then continue end
             if not data.card and not data.highlight then continue end
 
-            local dist    = getDistance(root)
-            local newTier = getTier(dist)
-
-            -- Round to 1 decimal to avoid updating text every tick while standing still
+            local dist        = getDistance(root)
+            local newTier     = getTier(dist)
             local roundedDist = math.floor(dist * 10 + 0.5)
 
             if newTier ~= data.tier then
                 data.tier = newTier
                 local col = TIER_COLOR[newTier]
-                if data.distLabel then data.distLabel.TextColor3 = col end
+                if data.distLabel then data.distLabel.TextColor3    = col end
                 if data.accent    then data.accent.BackgroundColor3 = col end
-                if data.icon      then data.icon.TextColor3 = col end
+                if data.icon      then data.icon.TextColor3         = col end
             end
 
             if data.distLabel and roundedDist ~= data.lastDist then
-                data.lastDist = roundedDist
+                data.lastDist       = roundedDist
                 data.distLabel.Text = string.format("Distance: %.1f m", dist)
             end
 
@@ -404,46 +409,38 @@ task.spawn(function()
 end)
 
 -- ── SCANNER ───────────────────────────────────────────────────────────────────
--- Only attaches ChildAdded to Folders, not to every Model in the game.
--- For newly added Models that arrive before their Humanoid, we wait for
--- the Humanoid via a single ChildAdded connection that self-disconnects.
+-- Scans a folder recursively. Existing models → registerExisting (silent).
+-- Attaches ChildAdded so future spawns → addNewNPC (card + sound).
+-- Only recurses into Folders, not Models, to avoid attaching listeners
+-- to every prop and building piece in the game.
 
-local setupContainer
-
-local function onChildAdded(child)
-    if child:IsA("Model") then
-        if child:FindFirstChildOfClass("Humanoid") then
-            if isNPC(child) then addNewNPC(child) end
-        else
-            local conn
-            conn = child.ChildAdded:Connect(function(grandchild)
-                if grandchild:IsA("Humanoid") then
-                    conn:Disconnect()
-                    conn = nil
-                    task.defer(function()
-                        if child.Parent and isNPC(child) then addNewNPC(child) end
-                    end)
-                end
-            end)
-            task.delay(10, function()
-                if conn then conn:Disconnect() end
-            end)
-        end
-    end
-end
-
-setupContainer = function(parent)
-    parent.ChildAdded:Connect(onChildAdded)
-    for _, child in ipairs(parent:GetChildren()) do
-        if child:IsA("Model") and isNPC(child) then
-            registerExisting(child)
+local function scanFolder(folder, isInitial)
+    -- Watch for new children in this folder
+    folder.ChildAdded:Connect(function(child)
+        if child:IsA("Model") and NPC_SET[child.Name] then
+            -- New NPC spawned after load — give it a card
+            addNewNPC(child)
         elseif child:IsA("Folder") then
-            setupContainer(child)
+            scanFolder(child, false)
+        end
+    end)
+
+    -- Handle what's already in the folder right now
+    for _, child in ipairs(folder:GetChildren()) do
+        if child:IsA("Model") and NPC_SET[child.Name] then
+            if isInitial then
+                registerExisting(child)
+            else
+                addNewNPC(child)
+            end
+        elseif child:IsA("Folder") then
+            scanFolder(child, isInitial)
         end
     end
 end
 
-setupContainer(workspace.NPCs)
+-- Scan the entire workspace on load (isInitial = true → silent, no cards)
+scanFolder(workspace, true)
 
 Players.PlayerRemoving:Connect(function(p)
     if p ~= LocalPlayer then return end
@@ -459,19 +456,17 @@ end)
 
 local machineConfig = {
     { name = "Treadmill", folders = { workspace.Machines.Treadmill, workspace.Gangbase.Upgrades.Treadmill } },
-    { name = "Curls",     folders = { workspace.Machines.Curls,     workspace.Gangbase.Upgrades["Curl-Up"]   } },
-    { name = "Pullups",   folders = { workspace.Machines.Pullups,   workspace.Gangbase.Upgrades["Pullup Bar"]   } },
+    { name = "Curls",     folders = { workspace.Machines.Curls,     workspace.Gangbase.Upgrades["Curl-Up"] } },
+    { name = "Pullups",   folders = { workspace.Machines.Pullups,   workspace.Gangbase.Upgrades["Pullup Bar"] } },
 }
 
 local machineModels = {}
 for _, cfg in ipairs(machineConfig) do
     local models = {}
     for _, folder in ipairs(cfg.folders) do
-        if folder then  
+        if folder then
             for _, child in ipairs(folder:GetChildren()) do
-                if child:IsA("Model") then
-                    table.insert(models, child)
-                end
+                if child:IsA("Model") then table.insert(models, child) end
             end
         end
     end
@@ -573,7 +568,6 @@ local machineButtonColors = {
     Curls     = Color3.fromRGB(160, 80, 200),
     Pullups   = Color3.fromRGB(200, 130, 40),
 }
--- Pre-computed dimmed versions (used when a button is deselected)
 local machineButtonDimmed = {
     Treadmill = Color3.fromRGB(35, 65, 100),
     Curls     = Color3.fromRGB(80, 40, 100),
@@ -607,6 +601,7 @@ for _, cfg in ipairs(machineConfig) do
         end
         currentTarget = models[selectedIndex[cfg.name]]
         highlightModel(currentTarget)
+        statusLabel.Text = cfg.name .. " #" .. selectedIndex[cfg.name] .. " / " .. #models
     end)
 end
 
@@ -762,15 +757,10 @@ local function walkTo(target)
     local character = LocalPlayer.Character
     local humanoid  = character and character:FindFirstChild("Humanoid")
     if not humanoid then return end
-    local dest = target:GetPivot().Position
-    humanoid:MoveTo(dest)
-
-    -- MoveToFinished signal instead of a polling loop — fires exactly once,
-    -- no per-frame task.wait() spam.
+    local dest    = target:GetPivot().Position
     local done    = false
-    local finConn = humanoid.MoveToFinished:Connect(function()
-        done = true
-    end)
+    humanoid:MoveTo(dest)
+    local finConn = humanoid.MoveToFinished:Connect(function() done = true end)
     local timeout = task.delay(8, function() done = true end)
     repeat task.wait(0.1) until done or not running
     finConn:Disconnect()
