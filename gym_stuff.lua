@@ -15,12 +15,14 @@ local remotePayload = buffer.fromstring("\b\005\001")
 -- Names are case-sensitive.
 
 local NPC_NAMES = {
-    "Zombie",
-    "R6Zombie",
-    "Skeleton",
-    "Bandit",
-    "Guard",
-    -- add more as needed
+    "Marco_Xan",
+    "Berg_Tsuyoshi",
+    "Joseph_Kagenou",
+    "Hyoi_Murasaki",
+    "Kaito_Takeuchi",
+    "John_Cinz",
+    "Jax_Thorn",
+    "Tetsuya_Kure",
 }
 
 -- Build a hash set for O(1) lookup instead of looping the list every check
