@@ -9,10 +9,11 @@ local playerGui   = LocalPlayer:WaitForChild("PlayerGui")
 local remoteEvent   = ReplicatedStorage:WaitForChild("Network"):WaitForChild("RemoteEvent")
 local remotePayload = buffer.fromstring("\b\005\001")
 
--- ── NPC NAME LIST ─────────────────────────────────────────────────────────────
--- Add or remove NPC names here. Only models whose name exactly matches one of
--- these will be detected, highlighted, and trigger notifications.
--- Names are case-sensitive.
+local machineConfig = {
+    { name = "Treadmill", folders = { workspace.Machines.Treadmill, workspace.Gangbase.Upgrades.Treadmill, workspace.Gangbase.Upgrades.Expansion.2.Treadmill } },
+    { name = "Curls",     folders = { workspace.Machines.Curls,     workspace.Gangbase.Upgrades["Curl-Up"] ,workspace.Gangbase.Upgrades.Expansion.2.Curls} },
+    { name = "Pullups",   folders = { workspace.Machines.Pullups,   workspace.Gangbase.Upgrades["Pullup Bar"] ,workspace.Gangbase.Upgrades.Expansion.2.Pullups} },
+}
 
 local NPC_NAMES = {
     "Marco_Xan",
@@ -424,12 +425,6 @@ Players.PlayerRemoving:Connect(function(p)
 end)
  
 -- ── MACHINE GUI ───────────────────────────────────────────────────────────────
- 
-local machineConfig = {
-    { name = "Treadmill", folders = { workspace.Machines.Treadmill, workspace.Gangbase.Upgrades.Treadmill } },
-    { name = "Curls",     folders = { workspace.Machines.Curls,     workspace.Gangbase.Upgrades["Curl-Up"] } },
-    { name = "Pullups",   folders = { workspace.Machines.Pullups,   workspace.Gangbase.Upgrades["Pullup Bar"] } },
-}
  
 local machineModels = {}
 for _, cfg in ipairs(machineConfig) do
