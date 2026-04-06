@@ -10,7 +10,7 @@ local remoteEvent   = ReplicatedStorage:WaitForChild("Network"):WaitForChild("Re
 local remotePayload = buffer.fromstring("\b\005\001")
 
 local machineConfig = {
-    { name = "Treadmill", folders = { workspace.Machines.Treadmill, workspace.Gangbase.Upgrades.Treadmill, workspace.Gangbase.Upgrades.Expansion.2.Treadmill } },
+    { name = "Treadmill", folders = { workspace.Machines.Treadmill, workspace.Gangbase.Upgrades.Treadmill, workspace.Gangbase.Upgrades.Expansion.2.Treadmill} },
     { name = "Curls",     folders = { workspace.Machines.Curls,     workspace.Gangbase.Upgrades["Curl-Up"] ,workspace.Gangbase.Upgrades.Expansion.2.Curls} },
     { name = "Pullups",   folders = { workspace.Machines.Pullups,   workspace.Gangbase.Upgrades["Pullup Bar"] ,workspace.Gangbase.Upgrades.Expansion.2.Pullups} },
 }
