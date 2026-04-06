@@ -432,7 +432,9 @@ for _, cfg in ipairs(machineConfig) do
     for _, folder in ipairs(cfg.folders) do
         if folder then
             for _, child in ipairs(folder:GetChildren()) do
-                if child:IsA("Model") then table.insert(models, child) end
+                if child:IsA("Model") and child.Name == cfg.name then 
+                    table.insert(models, child)
+                end
             end
         end
     end
