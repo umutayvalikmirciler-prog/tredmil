@@ -439,7 +439,10 @@ for _, cfg in ipairs(machineConfig) do
     machineModels[cfg.name] = models
 end
  
-local selectedIndex     = { Treadmill = 1, Curls = 1, Pullups = 1 }
+local selectedIndex = {}
+for _, cfg in ipairs(machineConfig) do
+    selectedIndex[cfg.name] = 1
+end
 local currentTarget     = nil
 local currentHighlights = {}
  
