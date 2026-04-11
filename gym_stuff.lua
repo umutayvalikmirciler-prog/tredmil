@@ -466,6 +466,7 @@ end
 
 local screenGui = Instance.new("ScreenGui")
 screenGui.ResetOnSpawn   = false
+screenGui.IgnoreGuiInset = true
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.Parent         = playerGui
 
