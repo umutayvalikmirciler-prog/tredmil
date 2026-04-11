@@ -9,21 +9,18 @@ local playerGui   = LocalPlayer:WaitForChild("PlayerGui")
 local remoteEvent   = ReplicatedStorage:WaitForChild("Network"):WaitForChild("RemoteEvent")
 local remotePayload = buffer.fromstring("\b\005\001")
 
-local machineConfig = {
-    { name = "Treadmill", folders = { workspace.Machines.Treadmill, workspace.Gangbase.Upgrades.Treadmill, workspace.Gangbase.Upgrades.Expansion["2"]} },
-    { name = "Curls",     folders = { workspace.Machines.Curls,     workspace.Gangbase.Upgrades["Curl-Up"] ,workspace.Gangbase.Upgrades.Expansion["2"]} },
-    { name = "Pullups",   folders = { workspace.Machines.Pullups,   workspace.Gangbase.Upgrades["Pullup Bar"] ,workspace.Gangbase.Upgrades.Expansion["2"]} },
-}
+-- ── NPC NAME LIST ─────────────────────────────────────────────────────────────
+-- Add or remove NPC names here. Only models whose name exactly matches one of
+-- these will be detected, highlighted, and trigger notifications.
+-- Names are case-sensitive.
 
 local NPC_NAMES = {
-    "Marco_Xan",
-    "Berg_Tsuyoshi",
-    "Joseph_Kagenou",
-    "Hyoi_Murasaki",
-    "Kaito_Takeuchi",
-    "John_Cinz",
-    "Jax_Thorn",
-    "Tetsuya_Kure",
+    "Zombie",
+    "R6Zombie",
+    "Skeleton",
+    "Bandit",
+    "Guard",
+    -- add more as needed
 }
 
 -- Build a hash set for O(1) lookup instead of looping the list every check
@@ -31,9 +28,9 @@ local NPC_SET = {}
 for _, name in ipairs(NPC_NAMES) do
     NPC_SET[name] = true
 end
- 
+
 -- ── CONFIG ────────────────────────────────────────────────────────────────────
- 
+
 local CFG = {
     DISTANCE_UPDATE = 0.5,
     MAX_CARDS       = 8,
@@ -53,31 +50,31 @@ local CFG = {
     CARD_HEIGHT     = 80,
     CARD_PADDING    = 8,
 }
- 
+
 local TIER_CLOSE  = 1
 local TIER_MEDIUM = 2
 local TIER_FAR    = 3
- 
+
 local TIER_COLOR     = { CFG.COLOR_CLOSE,     CFG.COLOR_MEDIUM,   CFG.COLOR_FAR     }
 local TIER_SEL_COLOR = { CFG.SEL_CLOSE_COLOR, CFG.SEL_MED_COLOR,  CFG.SEL_FAR_COLOR }
- 
+
 local TWEEN_SLIDE_IN  = TweenInfo.new(CFG.SLIDE_TIME, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 local TWEEN_SLIDE_OUT = TweenInfo.new(CFG.SLIDE_TIME, Enum.EasingStyle.Back, Enum.EasingDirection.In)
- 
+
 local CARD_OFF = UDim2.new(0, CFG.CARD_WIDTH + 20, 0, 0)
 local CARD_ON  = UDim2.new(0, 0, 0, 0)
 local CARD_BG  = Color3.fromRGB(15, 15, 20)
 local WHITE    = Color3.fromRGB(240, 240, 240)
- 
+
 -- ── DETECTOR GUI ──────────────────────────────────────────────────────────────
- 
+
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name           = "NPCDetectorGui"
 ScreenGui.ResetOnSpawn   = false
 ScreenGui.IgnoreGuiInset = true
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.Parent         = playerGui
- 
+
 local Container = Instance.new("Frame")
 Container.Name                   = "CardContainer"
 Container.BackgroundTransparency = 1
@@ -86,22 +83,22 @@ Container.Position               = UDim2.new(1, -12, 0, 12)
 Container.Size                   = UDim2.new(0, CFG.CARD_WIDTH, 1, -12)
 Container.ClipsDescendants       = false
 Container.Parent                 = ScreenGui
- 
+
 local Layout = Instance.new("UIListLayout")
 Layout.SortOrder           = Enum.SortOrder.LayoutOrder
 Layout.Padding             = UDim.new(0, CFG.CARD_PADDING)
 Layout.HorizontalAlignment = Enum.HorizontalAlignment.Right
 Layout.VerticalAlignment   = Enum.VerticalAlignment.Top
 Layout.Parent              = Container
- 
+
 -- ── STATE ─────────────────────────────────────────────────────────────────────
- 
+
 local tracked   = {}
 local cardQueue = {}
 local cardCount = 0
- 
+
 -- ── HELPERS ───────────────────────────────────────────────────────────────────
- 
+
 -- Cache the player's root part; only updates on character spawn/despawn
 local cachedPlayerRoot = nil
 LocalPlayer.CharacterAdded:Connect(function(char)
@@ -116,18 +113,18 @@ if LocalPlayer.Character then
     local char = LocalPlayer.Character
     cachedPlayerRoot = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
 end
- 
+
 local function getDistance(npcRoot)
     if not cachedPlayerRoot or not npcRoot or not npcRoot.Parent then return math.huge end
     return (npcRoot.Position - cachedPlayerRoot.Position).Magnitude
 end
- 
+
 local function getTier(dist)
     if dist <= CFG.CLOSE_DIST  then return TIER_CLOSE  end
     if dist <= CFG.MEDIUM_DIST then return TIER_MEDIUM end
     return TIER_FAR
 end
- 
+
 -- Fastest possible NPC check: one hash lookup on the model name.
 -- No Humanoid search, no ancestry walk, no player loop.
 local function isTrackedNPC(model)
@@ -135,9 +132,9 @@ local function isTrackedNPC(model)
         and NPC_SET[model.Name] == true
         and model ~= LocalPlayer.Character
 end
- 
+
 -- ── SOUND ─────────────────────────────────────────────────────────────────────
- 
+
 local function makeSound()
     if not CFG.PLAY_SOUND then return nil end
     local s = Instance.new("Sound")
@@ -148,11 +145,11 @@ local function makeSound()
     s.Parent             = playerGui
     return s
 end
- 
+
 local function startAlert(data)
     if CFG.PLAY_SOUND and data.sound then data.sound:Play() end
 end
- 
+
 local function stopAlert(data)
     if data.sound then
         data.sound:Stop()
@@ -160,9 +157,9 @@ local function stopAlert(data)
         data.sound = nil
     end
 end
- 
+
 -- ── HIGHLIGHT ─────────────────────────────────────────────────────────────────
- 
+
 local function makeHighlight(model, tier)
     local hl = Instance.new("Highlight")
     hl.Adornee             = model
@@ -174,12 +171,12 @@ local function makeHighlight(model, tier)
     hl.Parent              = model
     return hl
 end
- 
+
 -- ── CARD UI ───────────────────────────────────────────────────────────────────
- 
+
 local function makeCard(model, dist, tier)
     local col = TIER_COLOR[tier]
- 
+
     local card = Instance.new("Frame")
     card.Name             = "NPCCard_" .. model.Name
     card.Size             = UDim2.new(0, CFG.CARD_WIDTH, 0, CFG.CARD_HEIGHT)
@@ -189,14 +186,14 @@ local function makeCard(model, dist, tier)
     card.Position         = CARD_OFF
     card.Parent           = Container
     Instance.new("UICorner", card).CornerRadius = UDim.new(0, 10)
- 
+
     local accent = Instance.new("Frame")
     accent.Size             = UDim2.new(0, 5, 1, 0)
     accent.BackgroundColor3 = col
     accent.BorderSizePixel  = 0
     accent.Parent           = card
     Instance.new("UICorner", accent).CornerRadius = UDim.new(0, 10)
- 
+
     local icon = Instance.new("TextLabel")
     icon.Size                   = UDim2.new(0, 36, 0, 36)
     icon.Position               = UDim2.new(0, 14, 0.5, -18)
@@ -207,7 +204,7 @@ local function makeCard(model, dist, tier)
     icon.TextSize               = 26
     icon.TextXAlignment         = Enum.TextXAlignment.Center
     icon.Parent                 = card
- 
+
     local nameLabel = Instance.new("TextLabel")
     nameLabel.Size                   = UDim2.new(1, -80, 0, 26)
     nameLabel.Position               = UDim2.new(0, 58, 0, 12)
@@ -219,7 +216,7 @@ local function makeCard(model, dist, tier)
     nameLabel.TextXAlignment         = Enum.TextXAlignment.Left
     nameLabel.TextTruncate           = Enum.TextTruncate.AtEnd
     nameLabel.Parent                 = card
- 
+
     local distLabel = Instance.new("TextLabel")
     distLabel.Size                   = UDim2.new(1, -80, 0, 20)
     distLabel.Position               = UDim2.new(0, 58, 0, 40)
@@ -230,7 +227,7 @@ local function makeCard(model, dist, tier)
     distLabel.TextSize               = 13
     distLabel.TextXAlignment         = Enum.TextXAlignment.Left
     distLabel.Parent                 = card
- 
+
     local closeBtn = Instance.new("TextButton")
     closeBtn.Size             = UDim2.new(0, 26, 0, 26)
     closeBtn.Position         = UDim2.new(1, -32, 0, 8)
@@ -243,12 +240,12 @@ local function makeCard(model, dist, tier)
     closeBtn.AutoButtonColor  = true
     closeBtn.Parent           = card
     Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
- 
+
     TweenService:Create(card, TWEEN_SLIDE_IN, { Position = CARD_ON }):Play()
- 
+
     return card, distLabel, accent, icon, closeBtn
 end
- 
+
 local function slideOut(card, cb)
     if not card or not card.Parent then
         if cb then cb() end
@@ -261,20 +258,20 @@ local function slideOut(card, cb)
         if cb then cb() end
     end)
 end
- 
+
 -- ── QUEUE ─────────────────────────────────────────────────────────────────────
- 
+
 local promoteQueue
- 
+
 local function attachCard(model)
     if cardCount >= CFG.MAX_CARDS then return false end
     local data = tracked[model]
     if not data or data.card then return false end
- 
+
     cardCount  = cardCount + 1
     data.sound = makeSound()
     startAlert(data)
- 
+
     local dist = getDistance(data.npcRoot)
     local tier = getTier(dist)
     local card, distLabel, accent, icon, closeBtn = makeCard(model, dist, tier)
@@ -282,7 +279,7 @@ local function attachCard(model)
     data.distLabel = distLabel
     data.accent    = accent
     data.icon      = icon
- 
+
     closeBtn.MouseButton1Click:Connect(function()
         stopAlert(data)
         slideOut(card)
@@ -293,10 +290,10 @@ local function attachCard(model)
         data.icon      = nil
         promoteQueue()
     end)
- 
+
     return true
 end
- 
+
 promoteQueue = function()
     while #cardQueue > 0 and cardCount < CFG.MAX_CARDS do
         local nxt = table.remove(cardQueue, 1)
@@ -305,14 +302,14 @@ promoteQueue = function()
         end
     end
 end
- 
+
 -- ── NPC LIFECYCLE ─────────────────────────────────────────────────────────────
- 
+
 local function removeNPC(model)
     local data = tracked[model]
     if not data then return end
     tracked[model] = nil
- 
+
     stopAlert(data)
     if data.conn      then data.conn:Disconnect() end
     if data.highlight and data.highlight.Parent then data.highlight:Destroy() end
@@ -324,7 +321,7 @@ local function removeNPC(model)
         if cardQueue[i] == model then table.remove(cardQueue, i) end
     end
 end
- 
+
 -- Registers any matching NPC — whether it existed on join or spawned later.
 -- Always gives highlight + card + sound.
 local function addNPC(model)
@@ -333,7 +330,7 @@ local function addNPC(model)
         or model:FindFirstChild("Torso")
         or model:FindFirstChildWhichIsA("BasePart")
     if not npcRoot then return end
- 
+
     local conn = model.AncestryChanged:Connect(function(_, newParent)
         if not newParent then removeNPC(model) end
     end)
@@ -350,9 +347,9 @@ local function addNPC(model)
         table.insert(cardQueue, model)
     end
 end
- 
+
 -- ── UPDATE LOOP ───────────────────────────────────────────────────────────────
- 
+
 task.spawn(function()
     while true do
         task.wait(CFG.DISTANCE_UPDATE)
@@ -360,11 +357,11 @@ task.spawn(function()
             local root = data.npcRoot
             if not root or not root.Parent then continue end
             if not data.card and not data.highlight then continue end
- 
+
             local dist        = getDistance(root)
             local newTier     = getTier(dist)
             local roundedDist = math.floor(dist * 10 + 0.5)
- 
+
             if newTier ~= data.tier then
                 data.tier = newTier
                 local col = TIER_COLOR[newTier]
@@ -372,12 +369,12 @@ task.spawn(function()
                 if data.accent    then data.accent.BackgroundColor3 = col end
                 if data.icon      then data.icon.TextColor3         = col end
             end
- 
+
             if data.distLabel and roundedDist ~= data.lastDist then
                 data.lastDist       = roundedDist
                 data.distLabel.Text = string.format("Distance: %.1f m", dist)
             end
- 
+
             if data.highlight and data.highlight.Parent and newTier ~= data.hlTier then
                 data.hlTier = newTier
                 local c = TIER_SEL_COLOR[newTier]
@@ -387,13 +384,13 @@ task.spawn(function()
         end
     end
 end)
- 
+
 -- ── SCANNER ───────────────────────────────────────────────────────────────────
 -- Scans a folder recursively. Existing models → registerExisting (silent).
 -- Attaches ChildAdded so future spawns → addNewNPC (card + sound).
 -- Only recurses into Folders, not Models, to avoid attaching listeners
 -- to every prop and building piece in the game.
- 
+
 local function scanFolder(folder)
     folder.ChildAdded:Connect(function(child)
         if child:IsA("Model") and NPC_SET[child.Name] then
@@ -402,7 +399,7 @@ local function scanFolder(folder)
             scanFolder(child)
         end
     end)
- 
+
     for _, child in ipairs(folder:GetChildren()) do
         if child:IsA("Model") and NPC_SET[child.Name] then
             addNPC(child)
@@ -411,9 +408,9 @@ local function scanFolder(folder)
         end
     end
 end
- 
+
 scanFolder(workspace.NPCs)
- 
+
 Players.PlayerRemoving:Connect(function(p)
     if p ~= LocalPlayer then return end
     for _, data in pairs(tracked) do
@@ -423,36 +420,37 @@ Players.PlayerRemoving:Connect(function(p)
     end
     tracked = {}
 end)
- 
+
 -- ── MACHINE GUI ───────────────────────────────────────────────────────────────
- 
+
+local machineConfig = {
+    { name = "Treadmill", folders = { workspace.Machines.Treadmill, workspace.Gangbase.Upgrades.Treadmill } },
+    { name = "Curls",     folders = { workspace.Machines.Curls,     workspace.Gangbase.Upgrades["Curl-Up"] } },
+    { name = "Pullups",   folders = { workspace.Machines.Pullups,   workspace.Gangbase.Upgrades["Pullup Bar"] } },
+}
+
 local machineModels = {}
 for _, cfg in ipairs(machineConfig) do
     local models = {}
     for _, folder in ipairs(cfg.folders) do
         if folder then
             for _, child in ipairs(folder:GetChildren()) do
-                if child:IsA("Model") and child.Name == cfg.name then 
-                    table.insert(models, child)
-                end
+                if child:IsA("Model") then table.insert(models, child) end
             end
         end
     end
     machineModels[cfg.name] = models
 end
- 
-local selectedIndex = {}
-for _, cfg in ipairs(machineConfig) do
-    selectedIndex[cfg.name] = 1
-end
+
+local selectedIndex     = { Treadmill = 1, Curls = 1, Pullups = 1 }
 local currentTarget     = nil
 local currentHighlights = {}
- 
+
 local function clearHighlights()
     for _, h in ipairs(currentHighlights) do h:Destroy() end
     currentHighlights = {}
 end
- 
+
 local function highlightModel(model)
     clearHighlights()
     local h = Instance.new("Highlight")
@@ -465,40 +463,41 @@ local function highlightModel(model)
     h.Parent              = workspace
     table.insert(currentHighlights, h)
 end
- 
+
 local screenGui = Instance.new("ScreenGui")
 screenGui.ResetOnSpawn   = false
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.Parent         = playerGui
- 
+
 local frame = Instance.new("Frame")
 frame.Size             = UDim2.new(0, 240, 0, 254)
-frame.Position         = UDim2.new(0.5, -120, 0.5, -127)
+frame.AnchorPoint      = Vector2.new(1, 0)
+frame.Position         = UDim2.new(1, -12, 0, 12)
 frame.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
 frame.BorderSizePixel  = 0
 frame.Active           = true
 frame.Parent           = screenGui
 Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
- 
+
 local frameStroke = Instance.new("UIStroke")
 frameStroke.Color     = Color3.fromRGB(80, 80, 120)
 frameStroke.Thickness = 1.5
 frameStroke.Parent    = frame
- 
+
 local titleBar = Instance.new("Frame")
 titleBar.Size             = UDim2.new(1, 0, 0, 32)
 titleBar.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
 titleBar.BorderSizePixel  = 0
 titleBar.Parent           = frame
 Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 10)
- 
+
 local titleFix = Instance.new("Frame")
 titleFix.Size             = UDim2.new(1, 0, 0, 10)
 titleFix.Position         = UDim2.new(0, 0, 1, -10)
 titleFix.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
 titleFix.BorderSizePixel  = 0
 titleFix.Parent           = titleBar
- 
+
 local titleLabel = Instance.new("TextLabel")
 titleLabel.Size                   = UDim2.new(1, -40, 1, 0)
 titleLabel.Position               = UDim2.new(0, 10, 0, 0)
@@ -509,7 +508,7 @@ titleLabel.TextSize               = 13
 titleLabel.Font                   = Enum.Font.GothamBold
 titleLabel.TextXAlignment         = Enum.TextXAlignment.Left
 titleLabel.Parent                 = titleBar
- 
+
 local closeBtn = Instance.new("TextButton")
 closeBtn.Size             = UDim2.new(0, 24, 0, 24)
 closeBtn.Position         = UDim2.new(1, -28, 0, 4)
@@ -521,18 +520,18 @@ closeBtn.Font             = Enum.Font.GothamBold
 closeBtn.BorderSizePixel  = 0
 closeBtn.Parent           = titleBar
 Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
- 
+
 local machineButtonsFrame = Instance.new("Frame")
 machineButtonsFrame.Size                   = UDim2.new(1, -20, 0, 30)
 machineButtonsFrame.Position               = UDim2.new(0, 10, 0, 40)
 machineButtonsFrame.BackgroundTransparency = 1
 machineButtonsFrame.Parent                 = frame
- 
+
 local machineLayout = Instance.new("UIListLayout")
 machineLayout.FillDirection = Enum.FillDirection.Horizontal
 machineLayout.Padding       = UDim.new(0, 6)
 machineLayout.Parent        = machineButtonsFrame
- 
+
 local machineButtons      = {}
 local machineButtonColors = {
     Treadmill = Color3.fromRGB(70, 130, 200),
@@ -544,7 +543,7 @@ local machineButtonDimmed = {
     Curls     = Color3.fromRGB(80, 40, 100),
     Pullups   = Color3.fromRGB(100, 65, 20),
 }
- 
+
 for _, cfg in ipairs(machineConfig) do
     local btn = Instance.new("TextButton")
     btn.Size             = UDim2.new(0, 68, 1, 0)
@@ -557,7 +556,7 @@ for _, cfg in ipairs(machineConfig) do
     btn.Parent           = machineButtonsFrame
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 7)
     machineButtons[cfg.name] = btn
- 
+
     btn.MouseButton1Click:Connect(function()
         for name, b in pairs(machineButtons) do
             b.BackgroundColor3 = machineButtonDimmed[name]
@@ -575,7 +574,7 @@ for _, cfg in ipairs(machineConfig) do
         statusLabel.Text = cfg.name .. " #" .. selectedIndex[cfg.name] .. " / " .. #models
     end)
 end
- 
+
 local statusLabel = Instance.new("TextLabel")
 statusLabel.Size                   = UDim2.new(1, -20, 0, 20)
 statusLabel.Position               = UDim2.new(0, 10, 0, 78)
@@ -586,7 +585,7 @@ statusLabel.TextSize               = 11
 statusLabel.Font                   = Enum.Font.Gotham
 statusLabel.TextXAlignment         = Enum.TextXAlignment.Center
 statusLabel.Parent                 = frame
- 
+
 local toggleBtn = Instance.new("TextButton")
 toggleBtn.Size             = UDim2.new(1, -20, 0, 34)
 toggleBtn.Position         = UDim2.new(0, 10, 0, 108)
@@ -598,7 +597,7 @@ toggleBtn.Font             = Enum.Font.GothamBold
 toggleBtn.BorderSizePixel  = 0
 toggleBtn.Parent           = frame
 Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0, 8)
- 
+
 local soundLabel = Instance.new("TextLabel")
 soundLabel.Size                   = UDim2.new(1, -20, 0, 16)
 soundLabel.Position               = UDim2.new(0, 10, 0, 150)
@@ -609,13 +608,13 @@ soundLabel.TextSize               = 10
 soundLabel.Font                   = Enum.Font.Gotham
 soundLabel.TextXAlignment         = Enum.TextXAlignment.Left
 soundLabel.Parent                 = frame
- 
+
 local soundRow = Instance.new("Frame")
 soundRow.Size                   = UDim2.new(1, -20, 0, 28)
 soundRow.Position               = UDim2.new(0, 10, 0, 168)
 soundRow.BackgroundTransparency = 1
 soundRow.Parent                 = frame
- 
+
 local soundBox = Instance.new("TextBox")
 soundBox.Size              = UDim2.new(1, -70, 1, 0)
 soundBox.BackgroundColor3  = Color3.fromRGB(30, 30, 42)
@@ -633,7 +632,7 @@ local soundBoxStroke = Instance.new("UIStroke")
 soundBoxStroke.Color     = Color3.fromRGB(80, 80, 120)
 soundBoxStroke.Thickness = 1
 soundBoxStroke.Parent    = soundBox
- 
+
 local applyBtn = Instance.new("TextButton")
 applyBtn.Size             = UDim2.new(0, 60, 1, 0)
 applyBtn.Position         = UDim2.new(1, -60, 0, 0)
@@ -646,7 +645,7 @@ applyBtn.BorderSizePixel  = 0
 applyBtn.AutoButtonColor  = true
 applyBtn.Parent           = soundRow
 Instance.new("UICorner", applyBtn).CornerRadius = UDim.new(0, 6)
- 
+
 local soundFeedback = Instance.new("TextLabel")
 soundFeedback.Size                   = UDim2.new(1, -20, 0, 14)
 soundFeedback.Position               = UDim2.new(0, 10, 0, 200)
@@ -657,7 +656,7 @@ soundFeedback.TextSize               = 10
 soundFeedback.Font                   = Enum.Font.Gotham
 soundFeedback.TextXAlignment         = Enum.TextXAlignment.Center
 soundFeedback.Parent                 = frame
- 
+
 local function applySoundID(raw)
     local trimmed = raw:match("^%s*(.-)%s*$")
     if trimmed == "" then return end
@@ -676,14 +675,14 @@ local function applySoundID(raw)
     soundFeedback.Text = "Applied!"
     task.delay(2, function() soundFeedback.Text = "" end)
 end
- 
+
 applyBtn.MouseButton1Click:Connect(function() applySoundID(soundBox.Text) end)
 soundBox.FocusLost:Connect(function(enter) if enter then applySoundID(soundBox.Text) end end)
- 
+
 -- ── DRAGGING ──────────────────────────────────────────────────────────────────
- 
+
 local dragging, dragStart, startPos
- 
+
 titleBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         dragging  = true
@@ -691,7 +690,7 @@ titleBar.InputBegan:Connect(function(input)
         startPos  = frame.Position
     end
 end)
- 
+
 UserInputService.InputChanged:Connect(function(input)
     if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
         local delta = input.Position - dragStart
@@ -701,20 +700,20 @@ UserInputService.InputChanged:Connect(function(input)
         )
     end
 end)
- 
+
 UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         dragging = false
     end
 end)
- 
+
 -- ── MACHINE LOOP ──────────────────────────────────────────────────────────────
- 
+
 local isRunning  = false
 local loopThread = nil
 local running    = false
 local INTERVAL   = 1
- 
+
 local function stopLoop()
     isRunning = false
     running   = false
@@ -722,7 +721,7 @@ local function stopLoop()
     toggleBtn.Text             = "Start"
     toggleBtn.BackgroundColor3 = Color3.fromRGB(60, 180, 100)
 end
- 
+
 local function walkTo(target)
     if not target then return end
     local character = LocalPlayer.Character
@@ -737,12 +736,12 @@ local function walkTo(target)
     finConn:Disconnect()
     task.cancel(timeout)
 end
- 
+
 local function myCode()
     remoteEvent:FireServer(remotePayload)
     if currentTarget then walkTo(currentTarget) end
 end
- 
+
 local function startLoop()
     if not currentTarget then
         statusLabel.Text       = "Pick a machine first!"
@@ -764,11 +763,11 @@ local function startLoop()
         end
     end)
 end
- 
+
 toggleBtn.MouseButton1Click:Connect(function()
     if isRunning then stopLoop() else startLoop() end
 end)
- 
+
 closeBtn.MouseButton1Click:Connect(function()
     stopLoop()
     clearHighlights()
