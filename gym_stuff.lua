@@ -544,7 +544,16 @@ local machineButtonDimmed = {
     Curls     = Color3.fromRGB(80, 40, 100),
     Pullups   = Color3.fromRGB(100, 65, 20),
 }
-
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size                   = UDim2.new(1, -20, 0, 20)
+statusLabel.Position               = UDim2.new(0, 10, 0, 78)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text                   = "No machine selected"
+statusLabel.TextColor3             = Color3.fromRGB(180, 180, 220)
+statusLabel.TextSize               = 11
+statusLabel.Font                   = Enum.Font.Gotham
+statusLabel.TextXAlignment         = Enum.TextXAlignment.Center
+statusLabel.Parent                 = frame
 for _, cfg in ipairs(machineConfig) do
     local btn = Instance.new("TextButton")
     btn.Size             = UDim2.new(0, 68, 1, 0)
@@ -576,16 +585,7 @@ for _, cfg in ipairs(machineConfig) do
     end)
 end
 
-local statusLabel = Instance.new("TextLabel")
-statusLabel.Size                   = UDim2.new(1, -20, 0, 20)
-statusLabel.Position               = UDim2.new(0, 10, 0, 78)
-statusLabel.BackgroundTransparency = 1
-statusLabel.Text                   = "No machine selected"
-statusLabel.TextColor3             = Color3.fromRGB(180, 180, 220)
-statusLabel.TextSize               = 11
-statusLabel.Font                   = Enum.Font.Gotham
-statusLabel.TextXAlignment         = Enum.TextXAlignment.Center
-statusLabel.Parent                 = frame
+
 
 local toggleBtn = Instance.new("TextButton")
 toggleBtn.Size             = UDim2.new(1, -20, 0, 34)
