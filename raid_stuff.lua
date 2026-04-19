@@ -133,7 +133,7 @@ local function startTeleport()
         
         if hrp and npcRoot then
             -- Position update (Object Space)
-            hrp.CFrame = npcRoot.CFrame * CFrame.new(0, -4, 6)
+            hrp.CFrame = npcRoot.CFrame * CFrame.new(0, -4, 3)
             
             -- Velocity kill
             hrp.AssemblyLinearVelocity = Vector3.zero
