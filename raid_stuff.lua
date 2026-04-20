@@ -5,7 +5,7 @@ local RunService        = game:GetService("RunService")
 
 local LocalPlayer   = Players.LocalPlayer
 local remoteEvent   = ReplicatedStorage:WaitForChild("Network"):WaitForChild("RemoteEvent")
-local remotePayload = buffer.fromstring("\a\002\001")
+local remotePayload = buffer.fromstring("\002\001")
 
 local SEARCH_LIST = {"Black","Red","White","Gilbert"}
 local TELEPORT_INTERVAL = 0.1
