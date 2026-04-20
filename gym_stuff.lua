@@ -9,10 +9,18 @@ local playerGui   = LocalPlayer:WaitForChild("PlayerGui")
 local remoteEvent   = ReplicatedStorage:WaitForChild("Network"):WaitForChild("RemoteEvent")
 local remotePayload = buffer.fromstring("\b\005\001")
 
+-- ── NPC NAME LIST ─────────────────────────────────────────────────────────────
+-- Add or remove NPC names here. Only models whose name exactly matches one of
+-- these will be detected, highlighted, and trigger notifications.
+-- Names are case-sensitive.
 
+-- Any model whose name contains "_" is treated as an NPC.
+-- All target NPCs in the NPCs folder follow the Firstname_Lastname convention.
 local function isNPCName(name)
     return name:find("_", 1, true) ~= nil
 end
+
+-- ── CONFIG ────────────────────────────────────────────────────────────────────
 
 local CFG = {
     DISTANCE_UPDATE = 0.5,
@@ -509,6 +517,17 @@ machineLayout.FillDirection = Enum.FillDirection.Horizontal
 machineLayout.Padding       = UDim.new(0, 6)
 machineLayout.Parent        = machineButtonsFrame
 
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size                   = UDim2.new(1, -20, 0, 20)
+statusLabel.Position               = UDim2.new(0, 10, 0, 78)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text                   = "No machine selected"
+statusLabel.TextColor3             = Color3.fromRGB(180, 180, 220)
+statusLabel.TextSize               = 11
+statusLabel.Font                   = Enum.Font.Gotham
+statusLabel.TextXAlignment         = Enum.TextXAlignment.Center
+statusLabel.Parent                 = frame
+
 local machineButtons      = {}
 local machineButtonColors = {
     Treadmill = Color3.fromRGB(70, 130, 200),
@@ -551,17 +570,6 @@ for _, cfg in ipairs(machineConfig) do
         statusLabel.Text = cfg.name .. " #" .. selectedIndex[cfg.name] .. " / " .. #models
     end)
 end
-
-local statusLabel = Instance.new("TextLabel")
-statusLabel.Size                   = UDim2.new(1, -20, 0, 20)
-statusLabel.Position               = UDim2.new(0, 10, 0, 78)
-statusLabel.BackgroundTransparency = 1
-statusLabel.Text                   = "No machine selected"
-statusLabel.TextColor3             = Color3.fromRGB(180, 180, 220)
-statusLabel.TextSize               = 11
-statusLabel.Font                   = Enum.Font.Gotham
-statusLabel.TextXAlignment         = Enum.TextXAlignment.Center
-statusLabel.Parent                 = frame
 
 local toggleBtn = Instance.new("TextButton")
 toggleBtn.Size             = UDim2.new(1, -20, 0, 34)
