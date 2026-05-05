@@ -133,7 +133,7 @@ local function startTeleport()
         
         if hrp and npcRoot then
             -- Position update (Object Space)
-            hrp.CFrame = npcRoot.CFrame * CFrame.new(0, -4, 2)
+            hrp.CFrame = npcRoot.CFrame * CFrame.new(0, -4, 7)
             
             -- Velocity kill
             hrp.AssemblyLinearVelocity = Vector3.zero
@@ -208,7 +208,7 @@ local titleLabel = Instance.new("TextLabel")
 titleLabel.Size                   = UDim2.new(1, -40, 1, 0)
 titleLabel.Position               = UDim2.new(0, 10, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text                   = "raid şeysi i guess"
+titleLabel.Text                   = "yagiz domaltan 2.0"
 titleLabel.TextColor3             = Color3.fromRGB(200, 200, 255)
 titleLabel.TextSize               = 13
 titleLabel.Font                   = Enum.Font.GothamBold
