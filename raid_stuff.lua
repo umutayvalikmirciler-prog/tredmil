@@ -144,9 +144,12 @@ local function startTeleport()
     -- Keep the remote firing on a separate slower loop to avoid lag/kicks
     loopThread = task.spawn(function()
         while teleportEnabled do
+        local npcRoot = findBlackNPC()
+        if npcRoot then
             remoteEvent:FireServer(remotePayload)
-            task.wait(0.1) -- Keep the network traffic at 10Hz
         end
+        task.wait(0.1)
+    end
     end)
 end
 
